@@ -1,0 +1,60 @@
+<?php require_once __DIR__ . '/../includes/config.php'; require_once __DIR__ . '/../includes/csrf.php'; $csrfToken = csrf_token(); ?>
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="csrf-token" content="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>"><title>Request Help — FastAid</title><link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/legacy.css"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>#map{height:260px;border-radius:var(--radius);}</style></head><body class="legacy-page request-page">
+<nav class="navbar" aria-label="Main"><div class="nav-inner"><a href="index.html" class="logo">Fast<span>Aid</span></a><button class="hamburger" onclick="toggleNav()" aria-label="Toggle" aria-expanded="false"><span></span><span></span><span></span></button><div class="nav-links" id="navLinks"><a href="index.html">Home</a><a href="request.html" class="nav-btn">Get Help Now</a></div></div></nav>
+
+<main style="max-width:700px;margin:0 auto;padding:40px 20px;" aria-label="Request Help">
+  <div class="notice-banner">FastAid does not replace official emergency services. Call your local emergency number first for life-threatening situations. If you submit a request, its description and location are shared with nearby approved volunteers. Map tiles are provided by OpenStreetMap.</div>
+
+  <div id="step1" class="step-flow">
+    <div class="step-row">
+      <div class="step-number">1</div>
+      <div class="step-body"><h3>Is the person conscious and breathing?</h3><p>This helps us assess urgency quickly.</p></div>
+    </div>
+    <div style="display:flex;gap:14px;margin-left:56px;">
+      <button onclick="triageYes()" class="btn btn-red" style="flex:1;">Yes</button>
+      <button onclick="triageNo()" class="btn btn-outline" style="flex:1;">No</button>
+    </div>
+  </div>
+
+  <div id="step2" class="step-flow" style="display:none;">
+    <div class="step-row"><div class="step-number">2</div><div class="step-body"><h3>Emergency Type</h3><p>Tap the best match.</p></div></div>
+    <div class="tap-card-grid">
+      <button class="tap-card" onclick="selectType(this,'First Aid')"><div class="card-icon">🩹</div>First Aid</button>
+      <button class="tap-card" onclick="selectType(this,'CPR')"><div class="card-icon">💓</div>CPR</button>
+      <button class="tap-card" onclick="selectType(this,'Bleeding')"><div class="card-icon">🩸</div>Bleeding</button>
+      <button class="tap-card" onclick="selectType(this,'Choking')"><div class="card-icon">🚨</div>Choking</button>
+      <button class="tap-card" onclick="selectType(this,'Medication question')"><div class="card-icon">💊</div>Medication</button>
+      <button class="tap-card" onclick="selectType(this,'Other')"><div class="card-icon">❓</div>Other</button>
+    </div>
+    <div class="form-group" style="margin-top:20px;"><label for="descBox">Short Description</label><textarea id="descBox" placeholder="Describe the situation briefly..."></textarea></div>
+    <div class="form-group"><label>Location</label>
+      <button onclick="detectLocation()" class="btn btn-outline" style="margin-bottom:10px;">Auto Detect</button>
+      <input type="text" id="manualAddr" placeholder="Or enter address" style="width:100%;min-height:48px;">
+      <div id="map"></div>
+    </div>
+    <button onclick="goStep3()" class="btn btn-red" style="margin-top:10px;width:100%;">Continue</button>
+  </div>
+
+  <div id="step3" class="step-flow" style="display:none;text-align:center;">
+    <div class="step-row"><div class="step-number">3</div><div class="step-body"><h3>Calm Breath</h3><p>Take a slow breath before we send your request.</p></div></div>
+    <div class="breath-circle">Breathe</div>
+    <button onclick="sendRequest()" class="btn btn-yellow" style="margin-top:10px;">Send Request</button>
+  </div>
+</main>
+
+<script src="assets/js/main.js"></script><script src="assets/js/api.js"></script>
+<script>
+function toggleNav(){const l=document.getElementById('navLinks');l.classList.toggle('open');document.querySelector('.hamburger').setAttribute('aria-expanded',l.classList.contains('open'))}
+let selectedType='';
+let personConsciousAndBreathing=true;
+function triageYes(){personConsciousAndBreathing=true;document.getElementById('step1').style.display='none';document.getElementById('step2').style.display='block';initMap();}
+function triageNo(){personConsciousAndBreathing=false;document.getElementById('step1').innerHTML='<div style="padding:24px;background:#fff3e0;border-radius:var(--radius);border-left:4px solid #C0392B;"><h3 style="color:#C0392B;font-weight:600;margin-bottom:8px;">Call Emergency Services First</h3><p>Please call your local emergency number immediately. After that, you may continue to request volunteer assistance if still needed.</p></div>';setTimeout(()=>{document.getElementById('step1').style.display='none';document.getElementById('step2').style.display='block';initMap();},1500);}
+function selectType(el,type){document.querySelectorAll('.tap-card').forEach(c=>c.classList.remove('active'));el.classList.add('active');selectedType=type;}
+let requestCoordinates=null;
+function detectLocation(){if(!navigator.geolocation){showToast('Location is unavailable in this browser','error');return;}navigator.geolocation.getCurrentPosition(p=>{requestCoordinates={latitude:p.coords.latitude,longitude:p.coords.longitude};document.getElementById('manualAddr').value='Location shared from this device';initMap();showToast('Location selected');},()=>showToast('Location permission was not granted. Enter an address instead.', 'error'),{enableHighAccuracy:false,timeout:10000});}
+function initMap(){const container=document.getElementById('map');if(!container||container._leaflet_map||!requestCoordinates||!window.L)return;container._leaflet_map=L.map('map').setView([requestCoordinates.latitude,requestCoordinates.longitude],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM'}).addTo(container._leaflet_map);L.marker([requestCoordinates.latitude,requestCoordinates.longitude]).addTo(container._leaflet_map).bindPopup('Selected location');}
+function goStep3(){if(!selectedType){showToast('Select an emergency type', 'error');return;}document.getElementById('step2').style.display='none';document.getElementById('step3').style.display='block';}
+function sendRequest(){const location=document.getElementById('manualAddr').value.trim();if(!location){showToast('Enter an address or optionally share your device location','error');return;}api.create_request({type:selectedType,description:document.getElementById('descBox').value||selectedType,location,conscious_breathing:personConsciousAndBreathing?1:0,...(requestCoordinates||{})}).then(r=>{if(r.success){showToast('Request submitted. Notifications are in-app only.');window.location='tracking.html?id='+encodeURIComponent(r.data.requestId);}else showToast(r.error||'Could not submit request','error');});}
+</script><script src="assets/js/auth-guard.js"></script></body></html>
